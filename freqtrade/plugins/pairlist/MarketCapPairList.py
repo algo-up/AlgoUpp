@@ -35,6 +35,7 @@ class MarketCapPairList(IPairList):
         self._number_assets = self._pairlistconfig["number_assets"]
         self._max_rank = self._pairlistconfig.get("max_rank", 30)
         self._refresh_period = self._pairlistconfig.get("refresh_period", 86400)
+        self._category = self._pairlistconfig.get("category", None)
         self._marketcap_cache: TTLCache = TTLCache(maxsize=1, ttl=self._refresh_period)
         self._def_candletype = self._config["candle_type_def"]
 
@@ -44,6 +45,15 @@ class MarketCapPairList(IPairList):
             api_key=_coingecko_config.get("api_key", ""),
             is_demo=_coingecko_config.get("is_demo", True),
         )
+
+        if self._category:
+            categories = self._coingecko.get_coins_categories_list()
+            category_ids = [cat["category_id"] for cat in categories]
+
+            if self._category not in category_ids:
+                raise OperationalException(
+                    f"category not in coingecko category list you can choose from {category_ids}"
+                )
 
         if self._max_rank > 250:
             raise OperationalException("This filter only support marketcap rank up to 250.")
@@ -84,6 +94,12 @@ class MarketCapPairList(IPairList):
                 "default": 30,
                 "description": "Max rank of assets",
                 "help": "Maximum rank of assets to use from the pairlist",
+            },
+            "category": {
+                "type": "string",
+                "default": None,
+                "description": "The Category",
+                "help": "Th Category of the coin e.g layer-1 default None",
             },
             "refresh_period": {
                 "type": "number",
@@ -140,6 +156,7 @@ class MarketCapPairList(IPairList):
                 page="1",
                 sparkline="false",
                 locale="en",
+                **({"category": self._category} if self._category else {}),
             )
             if data:
                 marketcap_list = [row["symbol"] for row in data]
